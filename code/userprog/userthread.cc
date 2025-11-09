@@ -34,6 +34,12 @@ int do_ThreadCreate(int f, int arg)
     // On donne le meme espace d'adresse au nouveau thread
     newThread->space = currentThread->space;
 
+    // On incremente le compteur de thread dans l'espace d'adresse
+    newThread->space->incrementThreadCount();
+
+    DEBUG('x', "do_ThreadCreate: created thread %s in address space %p\n",
+          newThread->getName(), newThread->space);
+
     // Et on le start enfin en lui donnant les parametres
     newThread->Start(StartUserThread, (void *)params);
 
@@ -43,6 +49,9 @@ int do_ThreadCreate(int f, int arg)
 void do_ThreadExit()
 {
     DEBUG('x', "Thread %s finishing\n", currentThread->getName());
+
+    // On decremente le compteur de thread dans l'espace d'adresse avant de terminer
+    currentThread->space->decrementThreadCount();
     currentThread->Finish();
 }
 
@@ -77,6 +86,4 @@ static void StartUserThread(void *schmurtz)
 
     // On lance le thread utilisateur
     machine->Run();
-
-    ASSERT(false); // machine->Run ne doit pas retourner
 }

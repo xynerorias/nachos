@@ -18,8 +18,11 @@
 #include "translate.h"
 #include "noff.h"
 #include "list.h"
+#include "bitmap.h"
 
-#define UserStacksAreaSize 1024 // increase this as necessary!
+class Semaphore;
+
+#define UserStacksAreaSize 2048 // increase this as necessary!
 
 class AddrSpace : public dontcopythis
 {
@@ -42,12 +45,23 @@ public:
   unsigned NumPages(void) { return numPages; }
 
   int AllocateUserStack();
+  void DeallocateUserStack(int stackAddress);
+
+  void incrementThreadCount();
+  void decrementThreadCount();
 
 private:
   NoffHeader noffH; // Program layout
 
   TranslationEntry *pageTable; // Page table
   unsigned int numPages;       // Number of pages in the page table
+
+  int threadCount; // Number of threads in this address space
+  Semaphore *threadCountLock;
+
+  BitMap *stackBitMap;
+  int maxThreads;
+  static const int stackSlotSize = 256;
 };
 
 extern List AddrspaceList;

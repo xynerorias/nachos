@@ -2,19 +2,18 @@
 
 void threadFunction(void *arg)
 {
-    PutChar('A'); // simple affichage
-    ThreadExit(); // fin du thread utilisateur
+    int i;
+    for (i = 0; i < 10; i++)
+    {
+        PutChar('A');
+    }
+    ThreadExit();
 }
 
 int main()
 {
-    ThreadCreate(threadFunction, 0); // crée un thread qui affiche 'A'
-
-    // boucle infinie pour empêcher le thread principal de finir trop tôt
+    ThreadCreate(threadFunction, 0);
     while (1)
-    {
-        // on peut même faire une petite attente active
-    }
-
+        ;
     return 0;
 }

@@ -38,6 +38,8 @@ void StartProcess(char *filename)
 
     delete executable; // close file
 
+    space->incrementThreadCount();
+
     space->InitRegisters(); // set the initial register values
     space->RestoreState();  // load page table register
 

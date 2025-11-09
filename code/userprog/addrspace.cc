@@ -21,6 +21,7 @@
 #include "noff.h"
 #include "syscall.h"
 #include "new"
+#include "synch.h"
 
 //----------------------------------------------------------------------
 // SwapHeader
@@ -126,6 +127,13 @@ AddrSpace::AddrSpace(OpenFile *executable)
 
     pageTable[0].valid = FALSE; // Catch NULL dereference
 
+    maxThreads = UserStacksAreaSize / stackSlotSize;
+    stackBitMap = new BitMap(maxThreads);
+    DEBUG('x', "On peut avoir jusqu'à %d threads\n", maxThreads);
+
+    threadCount = 0;
+    threadCountLock = new Semaphore("thread count lock", 1);
+
     AddrSpaceList.Append(this);
 }
 
@@ -138,8 +146,31 @@ AddrSpace::~AddrSpace()
 {
     delete[] pageTable;
     pageTable = NULL;
+    delete stackBitMap;
+    delete threadCountLock;
 
     AddrSpaceList.Remove(this);
+}
+
+void AddrSpace::incrementThreadCount()
+{
+    threadCountLock->P();
+    threadCount++;
+    threadCountLock->V();
+}
+
+void AddrSpace::decrementThreadCount()
+{
+    threadCountLock->P();
+    threadCount--;
+
+    while (threadCount == 0)
+    {
+        threadCountLock->V();
+        interrupt->Powerdown();
+        // on ne revient plus ici vu que powerdown
+    }
+    threadCountLock->V();
 }
 
 //----------------------------------------------------------------------
@@ -291,14 +322,37 @@ void AddrSpace::RestoreState()
 
 int AddrSpace::AllocateUserStack()
 {
-    // D'apres le TD, la taille de la memoire virtuelle est numPages * PageSize
-    int numBytes = numPages * PageSize;
+    int slot = stackBitMap->Find();
 
-    // Comme indiqué dans le sujet, on réserve 256 bytes pour la pile
-    int stackAddress = numBytes - 256;
+    if (slot == -1)
+    {
+        DEBUG('x', "AllocateUserStack : Plus de place !\n");
+        return -1;
+    }
+
+    // // D'apres le TD, la taille de la memoire virtuelle est numPages * PageSize
+    // int numBytes = numPages * PageSize;
+
+    // // Comme indiqué dans le sujet, on réserve 256 bytes pour la pile
+    // int stackAddress = numBytes - 256;
+
+    int stackTop = (numPages * PageSize) - (slot * stackSlotSize) - 16;
 
     // Macro DEBUG du sujet
-    DEBUG('x', "Allocating user stack at address %d\n", stackAddress);
+    DEBUG('x', "Allocating user stack at address %d\n", stackTop);
 
-    return stackAddress;
+    return stackTop;
+}
+
+void AddrSpace::DeallocateUserStack(int stackAddress)
+{
+    // On retrouve le slot à libérer
+    int stackTop = numPages - PageSize - 16;
+    int slot = (stackTop - stackAddress) / stackSlotSize;
+
+    if (slot >= 0 && slot < maxThreads)
+    {
+        stackBitMap->Clear(slot);
+        DEBUG('x', "Deallocated user stack at address %d\n", slot);
+    }
 }
