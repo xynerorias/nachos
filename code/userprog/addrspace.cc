@@ -52,6 +52,50 @@ SwapHeader(NoffHeader *noffH)
 //----------------------------------------------------------------------
 List AddrSpaceList;
 
+
+// --------------------------------------------------------------
+// ReadAtVirtual
+// --------------------------------------------------------------
+// Lit numBytes depuis le fichier executable (à partir de position),
+// et les écrit **en mémoire virtuelle utilisateur**, en utilisant la
+// table de pages fournie dans pageTable.
+// --------------------------------------------------------------
+
+static void ReadAtVirtual(OpenFile *executable,
+                          int virtualaddr,
+                          int numBytes,
+                          int position,
+                          TranslationEntry *pageTable,
+                          unsigned numPages)
+{
+    char *buffer = new char[numBytes]; // tampon temporaire côté noyau
+
+    // 1. On lit tout le bloc depuis le fichier dans le buffer noyau
+    executable->ReadAt(buffer, numBytes, position);
+
+    // 2. On sauvegarde l’ancienne table des pages
+    TranslationEntry *oldPageTable = machine->currentPageTable;
+    unsigned oldPageTableSize = machine->currentPageTableSize;
+
+    // 3. On active temporairement la bonne table des pages
+    machine->currentPageTable = pageTable;
+    machine->currentPageTableSize = numPages;
+
+    // 4. On copie **octet par octet** dans la mémoire utilisateur
+    for (int i = 0; i < numBytes; i++)
+    {
+        int success = machine->WriteMem(virtualaddr + i, 1, buffer[i]);
+        ASSERT(success); // si erreur, on veut le voir immédiatement
+    }
+
+    // 5. On restaure l’ancienne table des pages
+    machine->currentPageTable = oldPageTable;
+    machine->currentPageTableSize = oldPageTableSize;
+
+    delete[] buffer;
+}
+
+
 //----------------------------------------------------------------------
 // AddrSpace::AddrSpace
 //      Create an address space to run a user program.
@@ -97,7 +141,9 @@ AddrSpace::AddrSpace(OpenFile *executable)
     pageTable = new TranslationEntry[numPages];
     for (i = 0; i < numPages; i++)
     {
-        pageTable[i].physicalPage = i; // for now, phys page # = virtual page #
+        int phys = pageProvider->GetEmptyPage();
+        ASSERT_MSG(phys != -1, "Pas assez de pages physiques !");
+        pageTable[i].physicalPage = phys;
         pageTable[i].valid = TRUE;
         pageTable[i].use = FALSE;
         pageTable[i].dirty = FALSE;
@@ -109,18 +155,24 @@ AddrSpace::AddrSpace(OpenFile *executable)
     // then, copy in the code and data segments into memory
     if (noffH.code.size > 0)
     {
-        DEBUG('a', "Initializing code segment, at 0x%x, size 0x%x\n",
-              noffH.code.virtualAddr, noffH.code.size);
-        executable->ReadAt(&(machine->mainMemory[noffH.code.virtualAddr]),
-                           noffH.code.size, noffH.code.inFileAddr);
+        ReadAtVirtual(executable,
+                    noffH.code.virtualAddr,
+                    noffH.code.size,
+                    noffH.code.inFileAddr,
+                    pageTable,
+                    numPages);
     }
+
     if (noffH.initData.size > 0)
     {
-        DEBUG('a', "Initializing data segment, at 0x%x, size 0x%x\n",
-              noffH.initData.virtualAddr, noffH.initData.size);
-        executable->ReadAt(&(machine->mainMemory[noffH.initData.virtualAddr]),
-                           noffH.initData.size, noffH.initData.inFileAddr);
+        ReadAtVirtual(executable,
+                    noffH.initData.virtualAddr,
+                    noffH.initData.size,
+                    noffH.initData.inFileAddr,
+                    pageTable,
+                    numPages);
     }
+
 
     DEBUG('a', "Area for stacks at 0x%x, size 0x%x\n",
           size - UserStacksAreaSize, UserStacksAreaSize);
@@ -144,6 +196,11 @@ AddrSpace::AddrSpace(OpenFile *executable)
 
 AddrSpace::~AddrSpace()
 {
+    for (unsigned int i = 0; i < numPages; i++)
+    {
+        if (pageTable[i].valid)
+            pageProvider->ReleasePage(pageTable[i].physicalPage);
+    }
     delete[] pageTable;
     pageTable = NULL;
     delete stackBitMap;

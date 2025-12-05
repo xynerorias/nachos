@@ -65,7 +65,7 @@ INCDIR	:=	-I../userprog -I../threads
 CFLAGS	:=	-G 0 -DIN_USER_MODE $(INCDIR) -Wall -O2 -DCHANGED -ffreestanding
 
 SOURCES	:=	$(wildcard *.c)
-PROGS := $(filter-out vsprintf, $(patsubst %.c,%,$(SOURCES)))
+PROGS := $(filter-out vsprintf printf, $(patsubst %.c,%,$(SOURCES)))
 VSPRINTF = vsprintf.o
 
 # We don't support native builds

@@ -33,6 +33,7 @@ SynchDisk *synchDisk;
 
 #ifdef USER_PROGRAM // requires either FILESYS or FILESYS_STUB
 Machine *machine;   // user program memory and registers
+PageProvider *pageProvider = NULL;
 #endif
 
 #ifdef NETWORK
@@ -180,8 +181,11 @@ void Initialize(int argc, char **argv)
     interrupt->Enable();
     CallOnUserAbort(Cleanup); // if user hits ctl-C
 
+
 #ifdef USER_PROGRAM
     machine = new Machine(debugUserProg); // this must come first
+    pageProvider = new PageProvider(NumPhysPages);
+
 #endif
 
 #ifdef FILESYS
@@ -196,6 +200,19 @@ void Initialize(int argc, char **argv)
     postOffice = new PostOffice(netname, rely, 10);
 #endif
 }
+
+#ifdef USER_PROGRAM
+void StartUserProcess(void *addrspace)
+{
+    AddrSpace *space = (AddrSpace *) addrspace;
+
+    space->InitRegisters();
+    space->RestoreState();
+
+    machine->Run();
+}
+#endif
+
 
 //----------------------------------------------------------------------
 // Cleanup

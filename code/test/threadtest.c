@@ -16,9 +16,10 @@ void threadFunction(void *arg)
 
 int main()
 {
-    ThreadCreate(threadFunction, 0);
-
     int i;
+
+    ThreadCreate(threadFunction, (void*)0);
+
     for (i = 0; i < 5; i++)
     {
         PutChar('0');

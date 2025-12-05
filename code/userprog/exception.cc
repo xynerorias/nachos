@@ -26,6 +26,10 @@
 #include "syscall.h"
 #include "usercopy.h"
 #include "userthread.h"
+#ifdef USER_PROGRAM
+extern void StartUserProcess(void *addrspace);
+#endif
+
 
 //----------------------------------------------------------------------
 // UpdatePC : Increments the Program Counter register in order to resume
@@ -41,6 +45,33 @@ UpdatePC()
   pc += 4;
   machine->WriteRegister(NextPCReg, pc);
 }
+
+int do_ForkExec(int vaddr)
+{
+    char filename[256];
+
+    if (!copyStringFromMachine(vaddr, filename, sizeof(filename)))
+        return -1;
+
+    OpenFile *executable = fileSystem->Open(filename);
+    if (executable == NULL)
+    {
+        printf("Unable to open file %s\n", filename);
+        return -1;
+    }
+
+    AddrSpace *space = new AddrSpace(executable);
+    delete executable;
+
+    Thread *t = new Thread(filename);
+    t->space = space;
+
+    t->Start(StartUserProcess, space);
+
+    return 0;
+}
+
+
 
 //----------------------------------------------------------------------
 // ExceptionHandler
@@ -156,6 +187,19 @@ void ExceptionHandler(ExceptionType which)
       do_ThreadExit();
       return;
     }
+    case SC_ForkExec:
+    {
+        int filenameAddr = machine->ReadRegister(4);
+        int result = do_ForkExec(filenameAddr);
+        machine->WriteRegister(2, result);
+        int pc = machine->ReadRegister(PCReg);
+        machine->WriteRegister(PrevPCReg, pc);
+        machine->WriteRegister(PCReg, machine->ReadRegister(NextPCReg));
+        machine->WriteRegister(NextPCReg, machine->ReadRegister(NextPCReg) + 4);
+        return;
+    }
+
+
 #endif
 
     default:

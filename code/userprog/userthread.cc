@@ -50,8 +50,9 @@ void do_ThreadExit()
 {
     DEBUG('x', "Thread %s finishing\n", currentThread->getName());
 
-    // On decremente le compteur de thread dans l'espace d'adresse avant de terminer
+    // On decremente le compteur de thread, désalloue la pile utilisateur, et on termine le thread
     currentThread->space->decrementThreadCount();
+    currentThread->space->DeallocateUserStack(machine->ReadRegister(StackReg));
     currentThread->Finish();
 }
 

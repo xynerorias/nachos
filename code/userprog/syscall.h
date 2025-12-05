@@ -37,6 +37,8 @@
 #define SC_GetString 15
 #define SC_ThreadCreate 16
 #define SC_ThreadExit 17
+#define SC_ForkExec 18
+
 
 #ifdef IN_USER_MODE
 
@@ -142,6 +144,9 @@ void GetString(char *s, int n);
 int ThreadCreate(void f(void *arg), void *arg);
 
 void ThreadExit(void);
+
+void ForkExec(char *filename);
+
 
 #endif // IN_USER_MODE
 
