@@ -82,7 +82,7 @@ class OpenFile:public dontcopythis {
                                         // Return the # actually read/written.
     int WriteAt(const void *from, int numBytes, int position);
 
-    int Length(void)                    // Return the number of bytes in the
+    int Length(void);                    // Return the number of bytes in the
                                         // file (this interface is simpler
                                         // than the UNIX idiom -- lseek to
                                         // end of file, tell, lseek back
